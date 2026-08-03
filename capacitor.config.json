@@ -1,0 +1,6 @@
+{
+  "appId": "com.institucion.asistencia",
+  "appName": "Control Asistencia",
+  "webDir": "www",
+  "bundledWebRuntime": false
+}

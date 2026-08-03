@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Control de Asistencia</title>
+
+    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --bg-pastel: #fdfbf7;
+            --primary-pastel: #a3c4f3;
+            --secondary-pastel: #f1c0e8;
+            --tertiary-pastel: #b9fbc0;
+            --text-color: #4a4e69;
+            --card-bg: #ffffff;
+            --ok-bg: #d4edda;
+            --ok-border: #c3e6cb;
+            --ok-text: #155724;
+            --error-bg: #f8d7da;
+            --error-border: #f5c6cb;
+            --error-text: #721c24;
+            --warning-bg: #fff3cd;
+            --warning-border: #ffeeba;
+            --warning-text: #856404;
+        }
+
+        body {
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-pastel);
+            color: var(--text-color);
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        header {
+            background-color: var(--card-bg);
+            padding: 15px 20px;
+            text-align: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-bottom: 4px solid var(--primary-pastel);
+        }
+
+        header h2 { margin: 0; font-size: 1.4rem; }
+
+        .contenedor-principal {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            padding: 20px;
+            width: 100%;
+            max-width: 700px; 
+            margin: 0 auto;
+            box-sizing: border-box;
+        }
+
+        .panel-config {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .panel {
+            background-color: var(--card-bg);
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.06);
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .panel-titulo {
+            margin-top: 0;
+            text-align: center;
+            font-size: 1.1rem;
+            color: var(--text-color);
+            margin-bottom: 15px;
+        }
+
+        .btn-cargar, .btn-descargar {
+            display: inline-block;
+            padding: 10px 20px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: 0.3s;
+            text-align: center;
+            width: 100%;
+            border: 2px solid;
+            box-sizing: border-box;
+        }
+
+        .btn-cargar {
+            background-color: var(--primary-pastel);
+            border-color: #8eb4e6;
+            color: var(--text-color);
+            max-width: 280px;
+        }
+
+        button.btn-descargar {
+            font-family: inherit;
+            font-size: 0.95rem;
+        }
+
+        .btn-cargar:active, .btn-descargar:active {
+            transform: scale(0.95);
+        }
+
+        #reader { width: 100%; border-radius: 8px; overflow: hidden; }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background-color: rgba(0, 0, 0, 0.6); 
+            backdrop-filter: blur(3px); 
+            display: none; 
+            justify-content: center;
+            align-items: center;
+            z-index: 9999; 
+        }
+
+        .modal-content {
+            background-color: var(--card-bg);
+            width: 90%;
+            max-width: 400px;
+            border-radius: 15px;
+            box-shadow: 0 15px 30px rgba(0,0,0,0.3);
+            padding: 20px;
+            animation: zoomIn 0.3s ease; 
+        }
+
+        @keyframes zoomIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        #resultado-box {
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .info-alumno {
+            display: none;
+            padding: 15px;
+            background-color: #f4f6f9;
+            border-radius: 10px;
+            border-left: 5px solid var(--secondary-pastel);
+        }
+
+        .info-alumno p { margin: 8px 0; font-size: 0.95rem; }
+        .info-alumno strong { color: var(--text-color); }
+
+        .ok { background-color: var(--ok-bg); color: var(--ok-text); border: 1px solid var(--ok-border); }
+        .vencido { background-color: var(--error-bg); color: var(--error-text); border: 1px solid var(--error-border); }
+        .error { background-color: var(--warning-bg); color: var(--warning-text); border: 1px solid var(--warning-border); }
+
+        .badge-estatus {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        .estatus-atiempo { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .estatus-retardo { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .estatus-salida { background-color: #e2e3e5; color: #383d41; border: 1px solid #d6d8db; }
+
+        footer {
+            text-align: center;
+            padding: 15px;
+            font-size: 0.85rem;
+            color: #6c757d;
+            background-color: var(--card-bg);
+            border-top: 1px solid #e9ecef;
+            margin-top: auto;
+        }
+
+        #cam-error {
+            display: none;
+            padding: 12px;
+            border-radius: 8px;
+            background-color: var(--warning-bg);
+            color: var(--warning-text);
+            border: 1px solid var(--warning-border);
+            font-size: 0.9rem;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        /* ESTILO PARA EL TEXTAREA DE RESPALDO */
+        #texto-crudo {
+            width: 100%; 
+            height: 200px; 
+            font-size: 0.8rem;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            white-space: pre;
+            overflow-wrap: normal;
+            overflow-x: scroll;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h2>🎫 Control de Asistencia Institucional</h2>
+    </header>
+
+    <div class="contenedor-principal">
+        <div class="panel-config">
+            <div style="width: 100%;">
+                <label for="csv-upload" class="btn-cargar">📥 Cargar Base de Datos</label>
+                <input type="file" id="csv-upload" accept=".csv, text/csv, text/plain, */*" style="display: none;">
+            </div>
+            
+            <div style="width: 100%; margin-top: 5px;">
+                <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-color);"><strong>Exportar Asistencias del Día:</strong></p>
+                <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+                    <button id="btn-csv" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #d4edda; border-color: #c3e6cb; color: #155724;">📊 Excel (CSV)</button>
+                    <button id="btn-pdf" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #f8d7da; border-color: #f5c6cb; color: #721c24;">📄 PDF</button>
+                </div>
+            </div>
+
+            <p id="db-status" style="font-size: 0.95rem; font-weight: 600; width: 100%; margin: 0;"></p>
+        </div>
+
+        <div class="panel">
+            <h3 class="panel-titulo">Escanear Credencial</h3>
+            <div id="cam-error"></div>
+            <div id="reader"></div>
+        </div>
+    </div>
+
+    <!-- VENTANA FLOTANTE PARA RESULTADOS DEL ESCANER -->
+    <div id="modal-overlay" class="modal-overlay">
+        <div class="modal-content">
+            <div id="resultado-box"></div>
+
+            <div id="info-alumno" class="info-alumno">
+                <p><strong>👤 Nombre:</strong> <span id="dato-nombre"></span></p>
+                <p><strong>🎓 Grado/Grupo:</strong> <span id="dato-grado"></span></p>
+                <p><strong>💼 Cargo:</strong> <span id="dato-cargo"></span></p>
+                
+                <hr style="border: 0; border-top: 1px solid #dee2e6; margin: 15px 0;">
+                
+                <p style="text-align: center; font-size: 1.1rem; margin-bottom: 5px; line-height: 1.5;">
+                    <strong>📅 Fecha: <span id="dato-fecha-real" style="color: var(--text-color);"></span></strong><br>
+                    <strong>⏰ Hora: <span id="dato-hora-real" style="color: var(--text-color);"></span></strong>
+                </p>
+                <div style="text-align: center; margin-top: 10px;">
+                    <span id="dato-estatus" class="badge-estatus"></span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- NUEVA VENTANA FLOTANTE PARA COPIADO MANUAL (EL SALVAVIDAS FINAL) -->
+    <div id="modal-datos-crudos" class="modal-overlay">
+        <div class="modal-content" style="max-width: 95%;">
+            <h3 style="margin-top:0; color: var(--error-text); text-align: center;">Copia Manual</h3>
+            <p style="font-size: 0.85rem; text-align: justify; margin-bottom: 10px;">
+                Tu celular bloqueó la creación del archivo. Mantén presionado el texto de abajo, selecciona <strong>"Seleccionar todo"</strong>, luego <strong>"Copiar"</strong> y pégalo en una hoja de Excel en blanco.
+            </p>
+            <textarea id="texto-crudo" readonly></textarea>
+            <button class="btn-descargar" onclick="document.getElementById('modal-datos-crudos').style.display='none'" style="margin-top: 15px; background-color: var(--primary-pastel);">Cerrar y Volver</button>
+        </div>
+    </div>
+
+    <footer>
+        copyright Rodrigo A. Muñoz Fuentealba
+    </footer>
+
+    <script>
+        let baseDeDatos = [];
+        let registrosDiarios = {}; 
+        let fechaMemoria = new Date().toDateString(); 
+        let escaneoPausado = false;
+
+        const modalOverlay = document.getElementById('modal-overlay');
+        const resultadoBox = document.getElementById('resultado-box');
+        const infoAlumnoBox = document.getElementById('info-alumno');
+        const modalDatosCrudos = document.getElementById('modal-datos-crudos');
+        const textoCrudo = document.getElementById('texto-crudo');
+
+        window.onload = () => {
+            try {
+                const datosGuardados = localStorage.getItem('institucionDB');
+                if (datosGuardados) {
+                    baseDeDatos = JSON.parse(datosGuardados);
+                    actualizarEstadoDB(true);
+                } else {
+                    actualizarEstadoDB(false);
+                }
+            } catch (e) {
+                baseDeDatos = [];
+                actualizarEstadoDB(false);
+            }
+
+            try {
+                const registrosGuardados = localStorage.getItem('asistenciasHoy');
+                const fechaGuardada = localStorage.getItem('fechaAsistencias');
+                const hoyString = new Date().toDateString();
+                
+                if (registrosGuardados && fechaGuardada === hoyString) {
+                    registrosDiarios = JSON.parse(registrosGuardados);
+                    fechaMemoria = fechaGuardada;
+                } else {
+                    registrosDiarios = {};
+                    fechaMemoria = hoyString;
+                    localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios));
+                    localStorage.setItem('fechaAsistencias', fechaMemoria);
+                }
+            } catch (e) {
+                registrosDiarios = {};
+            }
+
+            iniciarLector();
+        };
+
+        function actualizarEstadoDB(cargada) {
+            const status = document.getElementById('db-status');
+            if (cargada) {
+                status.innerHTML = `✅ Base de datos activa con <strong>${baseDeDatos.length}</strong> registros.`;
+                status.style.color = "var(--ok-text)";
+            } else {
+                status.innerHTML = `⚠️ Sistema vacío. Carga un archivo CSV para comenzar.`;
+                status.style.color = "var(--error-text)";
+            }
+        }
+
+        document.getElementById('csv-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(event) { procesarCSV(event.target.result); };
+            reader.onerror = function() { alert('Error al leer el archivo.'); };
+            reader.readAsText(file, 'UTF-8');
+            e.target.value = '';
+        });
+
+        function parsearLineaCSV(linea) {
+            const resultado = [];
+            let campoActual = '';
+            let dentroComillas = false;
+            for (let i = 0; i < linea.length; i++) {
+                const c = linea[i];
+                if (c === '"') {
+                    if (dentroComillas && linea[i + 1] === '"') { campoActual += '"'; i++; } 
+                    else { dentroComillas = !dentroComillas; }
+                } else if (c === ',' && !dentroComillas) {
+                    resultado.push(campoActual);
+                    campoActual = '';
+                } else {
+                    campoActual += c;
+                }
+            }
+            resultado.push(campoActual);
+            return resultado.map(v => v.trim());
+        }
+
+        function procesarCSV(texto) {
+            const textoLimpio = texto.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            const lineas = textoLimpio.split('\n');
+            const dataTemporal = [];
+
+            for (let i = 1; i < lineas.length; i++) {
+                if (lineas[i].trim() === '') continue;
+                const columnas = parsearLineaCSV(lineas[i]);
+                
+                if (columnas.length >= 9 && columnas[1] !== '') {
+                    dataTemporal.push({
+                        id: columnas[1],                             
+                        nombre: columnas[2],                         
+                        gradoGrupo: (columnas[3] + " " + columnas[4]).trim(), 
+                        vencimiento: columnas[6],                    
+                        ingreso: columnas[7],                        
+                        salida: columnas[8],                         
+                        cargo: columnas[9] || "Alumno"               
+                    });
+                }
+            }
+
+            if (dataTemporal.length > 0) {
+                baseDeDatos = dataTemporal;
+                localStorage.setItem('institucionDB', JSON.stringify(baseDeDatos));
+                actualizarEstadoDB(true);
+                alert(`¡Éxito! Se cargaron ${baseDeDatos.length} registros.`);
+            } else {
+                alert('Error: El archivo CSV no coincide con la plantilla.');
+            }
+        }
+
+        function parsearFecha(texto) {
+            if (!texto) return null;
+            const limpio = texto.trim();
+            if (limpio === '') return null;
+            let m = limpio.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (m) return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+            m = limpio.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+            if (m) return new Date(Number(m[3]), Number(m[2]) - 1, Number(m[1]));
+            const intento = new Date(limpio);
+            return isNaN(intento.getTime()) ? null : intento;
+        }
+
+        function evaluarRetardo(horaOficial) {
+            if (!horaOficial || horaOficial.trim() === "") return null; 
+            let match = horaOficial.match(/(\d+):(\d+)\s*(AM|PM|am|pm)?/i);
+            if (!match) return null;
+
+            let horas = parseInt(match[1], 10);
+            let minutos = parseInt(match[2], 10);
+            let ampm = match[3] ? match[3].toUpperCase() : null;
+
+            if (ampm === "PM" && horas < 12) horas += 12;
+            if (ampm === "AM" && horas === 12) horas = 0;
+
+            if (isNaN(horas) || isNaN(minutos) || horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
+                return null;
+            }
+
+            let ahora = new Date(); 
+            let limite = new Date();
+            limite.setHours(horas, minutos, 0, 0);
+            limite.setMinutes(limite.getMinutes() + 15);
+
+            if (ahora > limite) {
+                return { texto: "⚠️ RETARDO", clase: "estatus-retardo" };
+            } else {
+                return { texto: "✅ A TIEMPO", clase: "estatus-atiempo" };
+            }
+        }
+
+        function mostrarMensaje(estado, texto, usuario = null, horaReal = null, estatusObj = null) {
+            resultadoBox.className = estado;
+            resultadoBox.innerHTML = texto;
+
+            if (usuario) {
+                document.getElementById('dato-nombre').textContent = usuario.nombre;
+                document.getElementById('dato-grado').textContent = usuario.gradoGrupo; 
+                document.getElementById('dato-cargo').textContent = usuario.cargo;
+                
+                if (horaReal) {
+                    const fechaReal = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                    document.getElementById('dato-fecha-real').textContent = fechaReal;
+                    document.getElementById('dato-hora-real').textContent = horaReal;
+                }
+
+                const estatusSpan = document.getElementById('dato-estatus');
+                if (estatusObj) {
+                    estatusSpan.textContent = estatusObj.texto;
+                    estatusSpan.className = "badge-estatus " + estatusObj.clase;
+                    estatusSpan.style.display = 'inline-block';
+                } else {
+                    estatusSpan.style.display = 'none';
+                }
+
+                infoAlumnoBox.style.display = 'block';
+            } else {
+                infoAlumnoBox.style.display = 'none';
+            }
+            
+            modalOverlay.style.display = 'flex'; 
+        }
+
+        function validarAcceso(codigoLeido) {
+            const hoyString = new Date().toDateString();
+            if (hoyString !== fechaMemoria) {
+                registrosDiarios = {};
+                fechaMemoria = hoyString;
+                localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios));
+                localStorage.setItem('fechaAsistencias', fechaMemoria);
+            }
+
+            const codigo = (codigoLeido || '').trim().toLowerCase();
+            if (codigo === '') return;
+
+            if (baseDeDatos.length === 0) {
+                mostrarMensaje('error', '❌ Error: Base de datos no cargada.');
+                return;
+            }
+
+            const usuario = baseDeDatos.find(persona => (persona.id || '').toLowerCase() === codigo);
+            if (!usuario) {
+                mostrarMensaje('vencido', '❌ ACCESO DENEGADO<br><small>Credencial no registrada.</small>');
+                return;
+            }
+
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+            const fechaVencimiento = parsearFecha(usuario.vencimiento);
+
+            if (fechaVencimiento) {
+                fechaVencimiento.setHours(0, 0, 0, 0);
+                if (hoy > fechaVencimiento) {
+                    mostrarMensaje('vencido', `🚨 ACCESO DENEGADO<br><small>Credencial vencida</small>`, usuario);
+                    return;
+                }
+            }
+
+            let estadoActual = registrosDiarios[codigo];
+            if (typeof estadoActual === 'string') {
+                estadoActual = { estado: estadoActual, horaIngreso: 'Previa', horaSalida: '---', timestamp: 0 };
+            }
+
+            const horaActualStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const timestampActual = Date.now();
+
+            if (!estadoActual) {
+                let estatusCalculado = evaluarRetardo(usuario.ingreso) || { texto: "✅ INGRESADO", clase: "estatus-atiempo" };
+                
+                registrosDiarios[codigo] = { 
+                    estado: 'ingreso', 
+                    horaIngreso: horaActualStr, 
+                    horaSalida: '---',
+                    timestamp: timestampActual 
+                };
+                localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
+                
+                mostrarMensaje('ok', `INGRESO REGISTRADO`, usuario, horaActualStr, estatusCalculado);
+            } 
+            else if (estadoActual.estado === 'ingreso') {
+                const minutosBloqueo = 5; 
+                const tiempoTranscurrido = timestampActual - (estadoActual.timestamp || 0);
+
+                if (tiempoTranscurrido < (minutosBloqueo * 60 * 1000)) {
+                    const minutosRestantes = Math.ceil((minutosBloqueo * 60 * 1000 - tiempoTranscurrido) / 60000);
+                    mostrarMensaje('error', `⚠️ ENTRADA YA REGISTRADA<br><small>Espera ${minutosRestantes} min. antes de registrar tu salida.</small>`, usuario, horaActualStr, null);
+                } else {
+                    registrosDiarios[codigo].estado = 'salida';
+                    registrosDiarios[codigo].horaSalida = horaActualStr;
+                    registrosDiarios[codigo].timestamp = timestampActual;
+                    localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
+                    
+                    mostrarMensaje('ok', `SALIDA REGISTRADA`, usuario, horaActualStr, { texto: "🚪 SALIDA", clase: "estatus-salida" });
+                }
+            } 
+            else {
+                mostrarMensaje('error', `⚠️ REGISTRO DUPLICADO<br><small>Ya registró su salida hoy.</small>`, usuario, horaActualStr, null);
+            }
+        }
+
+        // ============================================================================
+        // NUEVO MOTOR DE EXPORTACIÓN SÍNCRONO (A PRUEBA DE BLOQUEOS EN WEBVIEWS ANDROID)
+        // ============================================================================
+
+        function copiarTextoAlternativo(text) {
+            // Este es el método heredado que funciona en el 99% de los webviews restrictivos
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            
+            try {
+                const successful = document.execCommand('copy');
+                document.body.removeChild(textArea);
+                if (successful) {
+                    alert("✅ ¡DATOS COPIADOS AL PORTAPAPELES!\n\nAbre Excel o WhatsApp y selecciona 'Pegar'.");
+                } else {
+                    mostrarModalTextoCrudo(text);
+                }
+            } catch (err) {
+                document.body.removeChild(textArea);
+                mostrarModalTextoCrudo(text);
+            }
+        }
+
+        function mostrarModalTextoCrudo(text) {
+            // El salvavidas final: Si nada puede copiar, le mostramos el texto al usuario
+            textoCrudo.value = text;
+            modalDatosCrudos.style.display = 'flex';
+        }
+
+        document.getElementById('btn-csv').addEventListener('click', () => {
+            if (Object.keys(registrosDiarios).length === 0) {
+                alert('No hay registros de asistencia el día de hoy para exportar.');
+                return;
+            }
+            
+            let csvContent = "\uFEFFID,Nombre,Grado/Grupo,Cargo,Hora Ingreso,Hora Salida\n";
+            let textContent = "ID\tNombre\tGrado/Grupo\tCargo\tHora Ingreso\tHora Salida\n";
+
+            for (const codigo in registrosDiarios) {
+                const r = registrosDiarios[codigo];
+                const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
+                if (u) {
+                    csvContent += `"${u.id}","${u.nombre}","${u.gradoGrupo}","${u.cargo}","${r.horaIngreso}","${r.horaSalida}"\n`;
+                    textContent += `${u.id}\t${u.nombre}\t${u.gradoGrupo}\t${u.cargo}\t${r.horaIngreso}\t${r.horaSalida}\n`;
+                }
+            }
+            
+            const fileName = `Asistencia_${new Date().toISOString().split('T')[0]}.csv`;
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+
+            // Intento 1: Compartir el Archivo CSV (Nativo)
+            try {
+                const file = new File([blob], fileName, { type: blob.type });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({ title: 'Reporte Asistencia', files: [file] }).catch(e=>{});
+                    return; 
+                }
+            } catch (e) {}
+
+            // Intento 2: Compartir el Texto a WhatsApp (Nativo)
+            try {
+                if (navigator.share) {
+                    navigator.share({ title: 'Reporte Asistencia', text: textContent }).catch(e=>{});
+                    return;
+                }
+            } catch(e) {}
+
+            // Intento 3: Copiar al Portapapeles Síncrono (Si falla, pasa al intento 4 visual)
+            copiarTextoAlternativo(textContent);
+        });
+
+        document.getElementById('btn-pdf').addEventListener('click', () => {
+            if (Object.keys(registrosDiarios).length === 0) {
+                alert('No hay registros de asistencia el día de hoy para exportar.');
+                return;
+            }
+            if (!window.jspdf) {
+                alert('La librería PDF no se ha cargado. Verifica tu conexión a internet.');
+                return;
+            }
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.setFontSize(16);
+            doc.text("Reporte de Asistencia Institucional", 14, 15);
+            doc.setFontSize(10);
+            doc.setTextColor(100);
+            doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 22);
+
+            const bodyData = [];
+            for (const codigo in registrosDiarios) {
+                const r = registrosDiarios[codigo];
+                const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
+                if (u) {
+                    bodyData.push([u.id, u.nombre, u.gradoGrupo, u.cargo, r.horaIngreso, r.horaSalida]);
+                }
+            }
+
+            if (typeof doc.autoTable !== 'function') {
+                alert('El complemento de tablas para PDF no se ha cargado. Verifica tu conexión a internet.');
+                return;
+            }
+
+            doc.autoTable({
+                startY: 28,
+                head: [['ID', 'Nombre', 'Grado/Grupo', 'Cargo', 'Ingreso', 'Salida']],
+                body: bodyData,
+                theme: 'striped',
+                styles: { fontSize: 8 },
+                headStyles: { fillColor: [163, 196, 243] } 
+            });
+
+            const fileName = `Asistencia_${new Date().toISOString().split('T')[0]}.pdf`;
+            const pdfOutput = doc.output('arraybuffer');
+            const blob = new Blob([pdfOutput], { type: 'application/pdf' });
+            
+            // Intento 1: Compartir Archivo PDF
+            try {
+                const file = new File([blob], fileName, { type: blob.type });
+                if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                    navigator.share({ title: 'Reporte Asistencia', files: [file] }).catch(e=>{});
+                    return; 
+                }
+            } catch (e) {}
+
+            // Intento 2: Descarga normal en WebViews permisivos
+            try {
+                const reader = new FileReader();
+                reader.onloadend = function() {
+                    const a = document.createElement('a');
+                    a.href = reader.result;
+                    a.download = fileName;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    
+                    // Solo en caso de que Android haya matado el PDF, recomendamos CSV
+                    setTimeout(() => {
+                        alert("⚠️ Si el PDF no se abrió o descargó, Android bloqueó la acción.\n\nPor favor usa el botón '📊 Excel (CSV)' para copiar los datos sin perder información.");
+                    }, 1500);
+                }
+                reader.readAsDataURL(blob);
+            } catch (e) {
+                 alert("⚠️ Android bloqueó la generación del PDF. Usa el botón '📊 Excel (CSV)' para exportar tus datos.");
+            }
+        });
+
+        // ============================================================================
+
+        let timeoutsPendientes = [];
+
+        function onScanSuccess(decodedText) {
+            if (escaneoPausado) return;
+            escaneoPausado = true;
+            validarAcceso(decodedText);
+            
+            const t1 = setTimeout(() => {
+                infoAlumnoBox.style.display = 'none';
+                
+                resultadoBox.className = 'ok';
+                resultadoBox.innerHTML = '🔄 Siguiente credencial...';
+                
+                const t2 = setTimeout(() => {
+                    modalOverlay.style.display = 'none'; 
+                    escaneoPausado = false; 
+                }, 1500); 
+                timeoutsPendientes.push(t2);
+
+            }, 3000); 
+            timeoutsPendientes.push(t1);
+        }
+
+        function onScanFailure() {}
+
+        function iniciarLector() {
+            const camError = document.getElementById('cam-error');
+            if (typeof Html5QrcodeScanner === 'undefined') {
+                camError.style.display = 'block';
+                camError.textContent = '⚠️ No se pudo cargar la librería del lector QR. Revisa tu internet.';
+                return;
+            }
+            try {
+                const html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: { width: 250, height: 250 } }, false);
+                html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+            } catch (e) {
+                camError.style.display = 'block';
+                camError.textContent = '⚠️ Error en cámara. Verifica permisos.';
+            }
+        }
+    </script>
+</body>
+</html>

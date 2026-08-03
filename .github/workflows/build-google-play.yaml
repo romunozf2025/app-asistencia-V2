@@ -1,0 +1,48 @@
+name: Construir App Oficial (Google Play AAB)
+
+on:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: 📥 Clonar repositorio
+      uses: actions/checkout@v3
+
+    - name: ⚙️ Configurar Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+
+    - name: 📦 Instalar Motor Capacitor
+      run: npm install
+
+    - name: 🤖 Generar Proyecto Android
+      run: |
+        npx cap add android
+        npx cap sync android
+
+    - name: ☕ Configurar Java (Requisito de Android)
+      uses: actions/setup-java@v3
+      with:
+        distribution: 'zulu'
+        java-version: '17'
+
+    - name: 📷 Inyectar Permisos de Cámara
+      run: |
+        sed -i '/<uses-permission android:name="android.permission.INTERNET" \/>/a \    <uses-permission android:name="android.permission.CAMERA" \/>' android/app/src/main/AndroidManifest.xml
+
+    - name: 🏗️ Compilar Android App Bundle (.aab)
+      run: |
+        cd android
+        chmod +x gradlew
+        ./gradlew bundleRelease
+
+    - name: 📤 Subir Archivo Oficial (AAB)
+      uses: actions/upload-artifact@v3
+      with:
+        name: ControlAsistencia-GooglePlay-AAB
+        path: android/app/build/outputs/bundle/release/app-release.aab
