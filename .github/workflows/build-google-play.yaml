@@ -25,7 +25,7 @@ jobs:
         npx cap add android
         npx cap sync android
 
-    - name: ☕ Configurar Java (Requisito de Android)
+    - name: ☕ Configurar Java
       uses: actions/setup-java@v4
       with:
         distribution: 'zulu'
@@ -41,8 +41,18 @@ jobs:
         chmod +x gradlew
         ./gradlew bundleRelease
 
-    - name: 📤 Subir Archivo Oficial (AAB)
+    - name: 🔐 Firmar el Archivo Oficial (Keystore)
+      env:
+        KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      run: |
+        echo $KEYSTORE_BASE64 | base64 --decode > release.keystore
+        jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass $KEYSTORE_PASSWORD -keypass $KEY_PASSWORD android/app/build/outputs/bundle/release/app-release.aab $KEY_ALIAS
+
+    - name: 📤 Subir Archivo Oficial (AAB) Firmado
       uses: actions/upload-artifact@v4
       with:
-        name: ControlAsistencia-GooglePlay-AAB
+        name: ControlAsistencia-GooglePlay-AAB-FIRMADO
         path: android/app/build/outputs/bundle/release/app-release.aab
