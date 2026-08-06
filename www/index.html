@@ -5,9 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Control de Asistencia</title>
 
+    <!-- LIBRERÍAS (QR, PDF y EXCEL) -->
     <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
 
     <style>
@@ -240,9 +242,9 @@
             </div>
             
             <div style="width: 100%; margin-top: 5px;">
-                <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-color);"><strong>Exportar Asistencias del Día:</strong></p>
+                <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-color);"><strong>Exportar y Compartir Asistencias:</strong></p>
                 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <button id="btn-csv" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #d4edda; border-color: #c3e6cb; color: #155724;">📊 Excel (CSV)</button>
+                    <button id="btn-excel" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #d4edda; border-color: #c3e6cb; color: #155724;">📊 Excel (.xlsx)</button>
                     <button id="btn-pdf" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #f8d7da; border-color: #f5c6cb; color: #721c24;">📄 PDF</button>
                 </div>
             </div>
@@ -280,12 +282,12 @@
         </div>
     </div>
 
-    <!-- NUEVA VENTANA FLOTANTE PARA COPIADO MANUAL (EL SALVAVIDAS FINAL) -->
+    <!-- VENTANA DE RESPALDO (POR SI FALLA EL COMPARTIR NATIVO) -->
     <div id="modal-datos-crudos" class="modal-overlay">
         <div class="modal-content" style="max-width: 95%;">
             <h3 style="margin-top:0; color: var(--error-text); text-align: center;">Copia Manual</h3>
             <p style="font-size: 0.85rem; text-align: justify; margin-bottom: 10px;">
-                Tu celular bloqueó la creación del archivo. Mantén presionado el texto de abajo, selecciona <strong>"Seleccionar todo"</strong>, luego <strong>"Copiar"</strong> y pégalo en una hoja de Excel en blanco.
+                Android bloqueó la opción de compartir el archivo directamente. Selecciona el texto, cópialo y pégalo en un documento en blanco.
             </p>
             <textarea id="texto-crudo" readonly></textarea>
             <button class="btn-descargar" onclick="document.getElementById('modal-datos-crudos').style.display='none'" style="margin-top: 15px; background-color: var(--primary-pastel);">Cerrar y Volver</button>
@@ -456,7 +458,7 @@
             }
         }
 
-        function mostrarMensaje(estado, texto, usuario = null, horaReal = null, estatusObj = null) {
+        function mostrarMensaje(estado, texto, usuario = null, horaReal = null, estatusObj = null, fechaReal = null) {
             resultadoBox.className = estado;
             resultadoBox.innerHTML = texto;
 
@@ -465,8 +467,7 @@
                 document.getElementById('dato-grado').textContent = usuario.gradoGrupo; 
                 document.getElementById('dato-cargo').textContent = usuario.cargo;
                 
-                if (horaReal) {
-                    const fechaReal = new Date().toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                if (horaReal && fechaReal) {
                     document.getElementById('dato-fecha-real').textContent = fechaReal;
                     document.getElementById('dato-hora-real').textContent = horaReal;
                 }
@@ -489,7 +490,8 @@
         }
 
         function validarAcceso(codigoLeido) {
-            const hoyString = new Date().toDateString();
+            const hoy = new Date();
+            const hoyString = hoy.toDateString();
             if (hoyString !== fechaMemoria) {
                 registrosDiarios = {};
                 fechaMemoria = hoyString;
@@ -511,38 +513,37 @@
                 return;
             }
 
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
+            const fechaFormatStr = hoy.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
+            const horaActualStr = hoy.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            const timestampActual = Date.now();
+
+            const hoyComprobacion = new Date();
+            hoyComprobacion.setHours(0, 0, 0, 0);
             const fechaVencimiento = parsearFecha(usuario.vencimiento);
 
             if (fechaVencimiento) {
                 fechaVencimiento.setHours(0, 0, 0, 0);
-                if (hoy > fechaVencimiento) {
-                    mostrarMensaje('vencido', `🚨 ACCESO DENEGADO<br><small>Credencial vencida</small>`, usuario);
+                if (hoyComprobacion > fechaVencimiento) {
+                    mostrarMensaje('vencido', `🚨 ACCESO DENEGADO<br><small>Credencial vencida</small>`, usuario, null, null, null);
                     return;
                 }
             }
 
             let estadoActual = registrosDiarios[codigo];
-            if (typeof estadoActual === 'string') {
-                estadoActual = { estado: estadoActual, horaIngreso: 'Previa', horaSalida: '---', timestamp: 0 };
-            }
-
-            const horaActualStr = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            const timestampActual = Date.now();
 
             if (!estadoActual) {
                 let estatusCalculado = evaluarRetardo(usuario.ingreso) || { texto: "✅ INGRESADO", clase: "estatus-atiempo" };
                 
                 registrosDiarios[codigo] = { 
-                    estado: 'ingreso', 
+                    estado: 'ingreso',
+                    fecha: fechaFormatStr,
                     horaIngreso: horaActualStr, 
                     horaSalida: '---',
                     timestamp: timestampActual 
                 };
                 localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
                 
-                mostrarMensaje('ok', `INGRESO REGISTRADO`, usuario, horaActualStr, estatusCalculado);
+                mostrarMensaje('ok', `INGRESO REGISTRADO`, usuario, horaActualStr, estatusCalculado, fechaFormatStr);
             } 
             else if (estadoActual.estado === 'ingreso') {
                 const minutosBloqueo = 5; 
@@ -550,97 +551,93 @@
 
                 if (tiempoTranscurrido < (minutosBloqueo * 60 * 1000)) {
                     const minutosRestantes = Math.ceil((minutosBloqueo * 60 * 1000 - tiempoTranscurrido) / 60000);
-                    mostrarMensaje('error', `⚠️ ENTRADA YA REGISTRADA<br><small>Espera ${minutosRestantes} min. antes de registrar tu salida.</small>`, usuario, horaActualStr, null);
+                    mostrarMensaje('error', `⚠️ ENTRADA YA REGISTRADA<br><small>Espera ${minutosRestantes} min. antes de registrar tu salida.</small>`, usuario, horaActualStr, null, fechaFormatStr);
                 } else {
                     registrosDiarios[codigo].estado = 'salida';
                     registrosDiarios[codigo].horaSalida = horaActualStr;
                     registrosDiarios[codigo].timestamp = timestampActual;
                     localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
                     
-                    mostrarMensaje('ok', `SALIDA REGISTRADA`, usuario, horaActualStr, { texto: "🚪 SALIDA", clase: "estatus-salida" });
+                    mostrarMensaje('ok', `SALIDA REGISTRADA`, usuario, horaActualStr, { texto: "🚪 SALIDA", clase: "estatus-salida" }, fechaFormatStr);
                 }
             } 
             else {
-                mostrarMensaje('error', `⚠️ REGISTRO DUPLICADO<br><small>Ya registró su salida hoy.</small>`, usuario, horaActualStr, null);
-            }
-        }
-
-        // ============================================================================
-        // NUEVO MOTOR DE EXPORTACIÓN SÍNCRONO (A PRUEBA DE BLOQUEOS EN WEBVIEWS ANDROID)
-        // ============================================================================
-
-        function copiarTextoAlternativo(text) {
-            // Este es el método heredado que funciona en el 99% de los webviews restrictivos
-            const textArea = document.createElement("textarea");
-            textArea.value = text;
-            textArea.style.position = "fixed";
-            textArea.style.left = "-9999px";
-            document.body.appendChild(textArea);
-            textArea.focus();
-            textArea.select();
-            
-            try {
-                const successful = document.execCommand('copy');
-                document.body.removeChild(textArea);
-                if (successful) {
-                    alert("✅ ¡DATOS COPIADOS AL PORTAPAPELES!\n\nAbre Excel o WhatsApp y selecciona 'Pegar'.");
-                } else {
-                    mostrarModalTextoCrudo(text);
-                }
-            } catch (err) {
-                document.body.removeChild(textArea);
-                mostrarModalTextoCrudo(text);
+                mostrarMensaje('error', `⚠️ REGISTRO DUPLICADO<br><small>Ya registró su salida hoy.</small>`, usuario, horaActualStr, null, fechaFormatStr);
             }
         }
 
         function mostrarModalTextoCrudo(text) {
-            // El salvavidas final: Si nada puede copiar, le mostramos el texto al usuario
             textoCrudo.value = text;
             modalDatosCrudos.style.display = 'flex';
         }
 
-        document.getElementById('btn-csv').addEventListener('click', () => {
+        // ==========================================
+        // EXPORTAR A EXCEL (.XLSX) Y COMPARTIR NATIVO
+        // ==========================================
+        document.getElementById('btn-excel').addEventListener('click', () => {
             if (Object.keys(registrosDiarios).length === 0) {
                 alert('No hay registros de asistencia el día de hoy para exportar.');
                 return;
             }
-            
-            let csvContent = "\uFEFFID,Nombre,Grado/Grupo,Cargo,Hora Ingreso,Hora Salida\n";
-            let textContent = "ID\tNombre\tGrado/Grupo\tCargo\tHora Ingreso\tHora Salida\n";
+            if (typeof XLSX === 'undefined') {
+                alert('La librería Excel no se ha cargado. Verifica tu conexión a internet.');
+                return;
+            }
+
+            // Crear los datos para el Excel
+            const ws_data = [['ID', 'Nombre', 'Grado/Grupo', 'Cargo', 'Fecha', 'Hora Ingreso', 'Hora Salida']];
+            let rawText = "ID\tNombre\tGrado/Grupo\tCargo\tFecha\tHora Ingreso\tHora Salida\n";
 
             for (const codigo in registrosDiarios) {
                 const r = registrosDiarios[codigo];
                 const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
                 if (u) {
-                    csvContent += `"${u.id}","${u.nombre}","${u.gradoGrupo}","${u.cargo}","${r.horaIngreso}","${r.horaSalida}"\n`;
-                    textContent += `${u.id}\t${u.nombre}\t${u.gradoGrupo}\t${u.cargo}\t${r.horaIngreso}\t${r.horaSalida}\n`;
+                    const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
+                    ws_data.push([u.id, u.nombre, u.gradoGrupo, u.cargo, fechaRegistro, r.horaIngreso, r.horaSalida]);
+                    rawText += `${u.id}\t${u.nombre}\t${u.gradoGrupo}\t${u.cargo}\t${fechaRegistro}\t${r.horaIngreso}\t${r.horaSalida}\n`;
                 }
             }
-            
-            const fileName = `Asistencia_${new Date().toISOString().split('T')[0]}.csv`;
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
 
-            // Intento 1: Compartir el Archivo CSV (Nativo)
+            // Generar el archivo Excel en memoria
+            const ws = XLSX.utils.aoa_to_sheet(ws_data);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Asistencia");
+            const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
+            const fileName = `Asistencia_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+            // Invocar el menú nativo de compartir (WhatsApp, Correo, etc.)
             try {
                 const file = new File([blob], fileName, { type: blob.type });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({ title: 'Reporte Asistencia', files: [file] }).catch(e=>{});
-                    return; 
+                    navigator.share({
+                        title: 'Reporte de Asistencia Excel',
+                        text: 'Adjunto el reporte de asistencia en formato Excel (.xlsx).',
+                        files: [file]
+                    }).catch(e => console.log("Compartir cancelado:", e));
+                    return;
                 }
             } catch (e) {}
 
-            // Intento 2: Compartir el Texto a WhatsApp (Nativo)
+            // Si el dispositivo no soporta compartir, forzar la descarga normal
             try {
-                if (navigator.share) {
-                    navigator.share({ title: 'Reporte Asistencia', text: textContent }).catch(e=>{});
-                    return;
-                }
-            } catch(e) {}
-
-            // Intento 3: Copiar al Portapapeles Síncrono (Si falla, pasa al intento 4 visual)
-            copiarTextoAlternativo(textContent);
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
+            } catch (err) {
+                mostrarModalTextoCrudo(rawText);
+            }
         });
 
+        // ==========================================
+        // EXPORTAR A PDF Y COMPARTIR NATIVO
+        // ==========================================
         document.getElementById('btn-pdf').addEventListener('click', () => {
             if (Object.keys(registrosDiarios).length === 0) {
                 alert('No hay registros de asistencia el día de hoy para exportar.');
@@ -650,31 +647,33 @@
                 alert('La librería PDF no se ha cargado. Verifica tu conexión a internet.');
                 return;
             }
+            
             const { jsPDF } = window.jspdf;
             const doc = new jsPDF();
             doc.setFontSize(16);
             doc.text("Reporte de Asistencia Institucional", 14, 15);
             doc.setFontSize(10);
             doc.setTextColor(100);
-            doc.text(`Fecha: ${new Date().toLocaleDateString()}`, 14, 22);
+            doc.text(`Fecha de Emisión: ${new Date().toLocaleDateString()}`, 14, 22);
 
             const bodyData = [];
             for (const codigo in registrosDiarios) {
                 const r = registrosDiarios[codigo];
                 const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
                 if (u) {
-                    bodyData.push([u.id, u.nombre, u.gradoGrupo, u.cargo, r.horaIngreso, r.horaSalida]);
+                    const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
+                    bodyData.push([u.id, u.nombre, u.gradoGrupo, u.cargo, fechaRegistro, r.horaIngreso, r.horaSalida]);
                 }
             }
 
             if (typeof doc.autoTable !== 'function') {
-                alert('El complemento de tablas para PDF no se ha cargado. Verifica tu conexión a internet.');
+                alert('El complemento de tablas para PDF no se ha cargado.');
                 return;
             }
 
             doc.autoTable({
                 startY: 28,
-                head: [['ID', 'Nombre', 'Grado/Grupo', 'Cargo', 'Ingreso', 'Salida']],
+                head: [['ID', 'Nombre', 'Grado/Grupo', 'Cargo', 'Fecha', 'Ingreso', 'Salida']],
                 body: bodyData,
                 theme: 'striped',
                 styles: { fontSize: 8 },
@@ -685,38 +684,33 @@
             const pdfOutput = doc.output('arraybuffer');
             const blob = new Blob([pdfOutput], { type: 'application/pdf' });
             
-            // Intento 1: Compartir Archivo PDF
+            // Invocar el menú nativo de compartir (WhatsApp, Correo, etc.)
             try {
                 const file = new File([blob], fileName, { type: blob.type });
                 if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    navigator.share({ title: 'Reporte Asistencia', files: [file] }).catch(e=>{});
+                    navigator.share({
+                        title: 'Reporte de Asistencia PDF',
+                        text: 'Adjunto el reporte de asistencia en formato PDF.',
+                        files: [file]
+                    }).catch(e => console.log("Compartir cancelado:", e));
                     return; 
                 }
             } catch (e) {}
 
-            // Intento 2: Descarga normal en WebViews permisivos
+            // Si el dispositivo no soporta compartir, forzar la descarga normal
             try {
-                const reader = new FileReader();
-                reader.onloadend = function() {
-                    const a = document.createElement('a');
-                    a.href = reader.result;
-                    a.download = fileName;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    
-                    // Solo en caso de que Android haya matado el PDF, recomendamos CSV
-                    setTimeout(() => {
-                        alert("⚠️ Si el PDF no se abrió o descargó, Android bloqueó la acción.\n\nPor favor usa el botón '📊 Excel (CSV)' para copiar los datos sin perder información.");
-                    }, 1500);
-                }
-                reader.readAsDataURL(blob);
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                window.URL.revokeObjectURL(url);
             } catch (e) {
-                 alert("⚠️ Android bloqueó la generación del PDF. Usa el botón '📊 Excel (CSV)' para exportar tus datos.");
+                 alert("⚠️ Android bloqueó la generación del PDF.");
             }
         });
-
-        // ============================================================================
 
         let timeoutsPendientes = [];
 

@@ -25,6 +25,11 @@ jobs:
         npx cap add android
         npx cap sync android
 
+    - name: 🎨 Recortar e Inyectar Ícono Personalizado
+      run: |
+        npm install @capacitor/assets -D
+        npx capacitor-assets generate --android
+
     - name: ☕ Configurar Java
       uses: actions/setup-java@v4
       with:
