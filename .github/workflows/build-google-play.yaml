@@ -44,9 +44,9 @@ jobs:
       run: |
         cd android
         chmod +x gradlew
-        ./gradlew bundleRelease assembleRelease
+        ./gradlew bundleRelease assembleDebug
 
-    - name: 🔐 Firmar Archivo Oficial AAB (Para Google Play)
+    - name: 🔐 Firmar Archivo Oficial (AAB)
       env:
         KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -56,24 +56,14 @@ jobs:
         echo "$KEYSTORE_BASE64" | tr -d '\n\r ' | base64 --decode > release.keystore
         jarsigner -verbose -sigalg SHA256withRSA -digestalg SHA-256 -keystore release.keystore -storepass $KEYSTORE_PASSWORD -keypass $KEY_PASSWORD android/app/build/outputs/bundle/release/app-release.aab $KEY_ALIAS
 
-    - name: 📲 Alinear y Firmar APK (Firma v2/v3 para Android Moderno)
-      env:
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
-      run: |
-        BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | tail -1)
-        $BUILD_TOOLS/zipalign -v -p 4 android/app/build/outputs/apk/release/app-release-unsigned.apk app-release-aligned.apk
-        $BUILD_TOOLS/apksigner sign --ks release.keystore --ks-pass pass:$KEYSTORE_PASSWORD --key-pass pass:$KEY_PASSWORD --out ControlAsistencia.apk app-release-aligned.apk
-
     - name: 📤 Subir AAB Firmado (Para Google Play)
       uses: actions/upload-artifact@v4
       with:
         name: ControlAsistencia-GooglePlay-AAB
         path: android/app/build/outputs/bundle/release/app-release.aab
 
-    - name: 📲 Subir APK Listo para Celular (Firma v2/v3)
+    - name: 📲 Subir APK de Prueba (Para instalar en tu celular)
       uses: actions/upload-artifact@v4
       with:
         name: ControlAsistencia-Celular-APK
-        path: ControlAsistencia.apk
+        path: android/app/build/outputs/apk/debug/app-debug.apk
