@@ -29,7 +29,7 @@ jobs:
 
     - name: 🎨 Recortar e Inyectar Ícono Personalizado
       run: |
-        npm install @capacitor/assets -D
+        npm install @capacitor/assets -D --legacy-peer-deps
         npx capacitor-assets generate --android
 
     - name: ☕ Configurar Java
