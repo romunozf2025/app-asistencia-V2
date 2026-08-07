@@ -27,6 +27,10 @@ jobs:
         npx cap add android
         npx cap sync android
 
+    - name: ⬆️ Actualizar SDK mínimo de Android
+      run: |
+        sed -i 's/minSdkVersion = 22/minSdkVersion = 23/g' android/variables.gradle
+
     - name: 🎨 Recortar e Inyectar Ícono Personalizado
       run: |
         npm install @capacitor/assets -D --legacy-peer-deps
