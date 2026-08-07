@@ -19,8 +19,8 @@ jobs:
 
     - name: 📦 Instalar Motor Capacitor y Plugins Nativos
       run: |
-        npm install
-        npm install @capacitor/filesystem @capacitor/share
+        npm install --legacy-peer-deps
+        npm install @capacitor/filesystem @capacitor/share --legacy-peer-deps
 
     - name: 🤖 Generar Proyecto Android
       run: |
