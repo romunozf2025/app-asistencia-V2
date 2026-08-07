@@ -17,8 +17,10 @@ jobs:
       with:
         node-version: '18'
 
-    - name: 📦 Instalar Motor Capacitor
-      run: npm install
+    - name: 📦 Instalar Motor Capacitor y Plugins Nativos
+      run: |
+        npm install
+        npm install @capacitor/filesystem @capacitor/share
 
     - name: 🤖 Generar Proyecto Android
       run: |
