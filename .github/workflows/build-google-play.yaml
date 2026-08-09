@@ -31,6 +31,10 @@ jobs:
       run: |
         sed -i 's/minSdkVersion = 22/minSdkVersion = 23/g' android/variables.gradle
 
+    - name: 🆙 Actualizar Gradle para soportar Java 21
+      run: |
+        sed -i 's/distributionUrl=.*/distributionUrl=https\:\/\/services.gradle.org\/distributions\/gradle-8.7-all.zip/g' android/gradle/wrapper/gradle-wrapper.properties
+
     - name: 🎨 Recortar e Inyectar Ícono Personalizado
       run: |
         npm install @capacitor/assets -D --legacy-peer-deps
