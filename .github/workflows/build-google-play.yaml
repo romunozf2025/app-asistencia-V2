@@ -27,9 +27,11 @@ jobs:
         npx cap add android
         npx cap sync android
 
-    - name: ⬆️ Actualizar SDK mínimo de Android
+    - name: ⬆️ Actualizar SDKs de Android
       run: |
-        sed -i 's/minSdkVersion = 22/minSdkVersion = 23/g' android/variables.gradle
+        sed -i 's/minSdkVersion = .*/minSdkVersion = 23/g' android/variables.gradle
+        sed -i 's/compileSdkVersion = .*/compileSdkVersion = 34/g' android/variables.gradle
+        sed -i 's/targetSdkVersion = .*/targetSdkVersion = 34/g' android/variables.gradle
 
     - name: 🆙 Actualizar Gradle para soportar Java 21
       run: |
