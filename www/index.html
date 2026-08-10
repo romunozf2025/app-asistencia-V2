@@ -5,11 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Control de Asistencia</title>
 
-    <!-- LIBRERÍAS (QR y PDF) -->
-    <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.28/jspdf.plugin.autotable.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet">
+    <!-- LIBRERÍAS 100% OFFLINE (Locales) -->
+    <script src="librerias/html5-qrcode.min.js" type="text/javascript"></script>
+    <script src="librerias/jspdf.umd.min.js"></script>
+    <script src="librerias/jspdf.plugin.autotable.min.js"></script>
 
     <style>
         :root {
@@ -21,7 +20,7 @@
         }
 
         body {
-            font-family: 'Poppins', sans-serif; margin: 0; padding: 0;
+            font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 0;
             background-color: var(--bg-pastel); color: var(--text-color);
             display: flex; flex-direction: column; min-height: 100vh;
             user-select: none; -webkit-user-select: none;
@@ -46,14 +45,26 @@
 
         .panel-titulo { margin-top: 0; text-align: center; font-size: 1.1rem; margin-bottom: 15px; }
 
-        .btn-cargar, .btn-descargar {
+        .btn-descargar {
             display: inline-block; padding: 10px 20px; border-radius: 8px; font-weight: 600;
             cursor: pointer; transition: 0.3s; text-align: center; width: 100%;
             border: 2px solid; box-sizing: border-box; font-family: inherit; font-size: 0.95rem;
         }
 
-        .btn-cargar { background-color: var(--primary-pastel); border-color: #8eb4e6; color: var(--text-color); max-width: 280px; }
-        .btn-cargar:active, .btn-descargar:active { transform: scale(0.95); }
+        .btn-descargar:active { transform: scale(0.95); }
+
+        /* Estilos de los contadores duales */
+        .contador-caja {
+            background-color: #f4f6f9; border-radius: 10px; padding: 15px;
+            width: 100%; box-sizing: border-box; border-left: 5px solid var(--primary-pastel);
+            margin-bottom: 5px; display: flex; justify-content: space-around;
+        }
+        .contador-bloque { text-align: center; }
+        .contador-numero {
+            font-size: 2.2rem; font-weight: bold; color: var(--text-color);
+            margin: 5px 0 0 0; line-height: 1;
+        }
+        .contador-texto { margin: 0; font-size: 0.9rem; font-weight: 600; color: #6c757d; text-transform: uppercase; }
 
         #reader { width: 100%; border-radius: 8px; overflow: hidden; }
 
@@ -100,20 +111,26 @@
 
     <div class="contenedor-principal">
         <div class="panel-config">
-            <div style="width: 100%;">
-                <label for="csv-upload" class="btn-cargar">📥 Cargar Base de Datos</label>
-                <input type="file" id="csv-upload" accept=".csv, text/csv, text/plain, */*" style="display: none;">
+            
+            <!-- CONTADORES INTELIGENTES -->
+            <div class="contador-caja">
+                <div class="contador-bloque">
+                    <p class="contador-texto">Asistencias Hoy</p>
+                    <p class="contador-numero" id="contador-hoy">0</p>
+                </div>
+                <div class="contador-bloque" style="border-left: 2px solid #dee2e6; padding-left: 15px;">
+                    <p class="contador-texto">Total en BD</p>
+                    <p class="contador-numero" id="contador-bd">0</p>
+                </div>
             </div>
             
-            <div style="width: 100%; margin-top: 5px;">
+            <div style="width: 100%; margin-top: 10px;">
                 <p style="margin: 0 0 10px 0; font-size: 0.9rem; color: var(--text-color);"><strong>Exportar y Compartir Asistencias:</strong></p>
                 <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button id="btn-csv" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #d4edda; border-color: #c3e6cb; color: #155724;">📊 Archivo CSV</button>
                     <button id="btn-pdf" class="btn-descargar" style="flex: 1; min-width: 130px; background-color: #f8d7da; border-color: #f5c6cb; color: #721c24;">📄 Archivo PDF</button>
                 </div>
             </div>
-
-            <p id="db-status" style="font-size: 0.95rem; font-weight: 600; width: 100%; margin: 0;"></p>
         </div>
 
         <div class="panel">
@@ -150,8 +167,8 @@
     </footer>
 
     <script>
-        let baseDeDatos = [];
-        let registrosDiarios = {}; 
+        let baseDeDatos = []; // Almacén histórico autogenerado
+        let registrosDiarios = {}; // Asistencias del día
         let fechaMemoria = new Date().toDateString(); 
         let escaneoPausado = false;
 
@@ -160,14 +177,13 @@
         const infoAlumnoBox = document.getElementById('info-alumno');
 
         window.onload = () => {
+            // Cargar la BD histórica
             try {
-                const datosGuardados = localStorage.getItem('institucionDB');
-                if (datosGuardados) {
-                    baseDeDatos = JSON.parse(datosGuardados);
-                    actualizarEstadoDB(true);
-                } else { actualizarEstadoDB(false); }
-            } catch (e) { baseDeDatos = []; actualizarEstadoDB(false); }
+                const bdGuardada = localStorage.getItem('institucionDB');
+                if (bdGuardada) baseDeDatos = JSON.parse(bdGuardada);
+            } catch (e) { baseDeDatos = []; }
 
+            // Cargar las asistencias de hoy
             try {
                 const registrosGuardados = localStorage.getItem('asistenciasHoy');
                 const fechaGuardada = localStorage.getItem('fechaAsistencias');
@@ -184,64 +200,34 @@
                 }
             } catch (e) { registrosDiarios = {}; }
 
+            actualizarContadores();
             iniciarLector();
         };
 
-        function actualizarEstadoDB(cargada) {
-            const status = document.getElementById('db-status');
-            if (cargada) {
-                status.innerHTML = `✅ Base de datos activa con <strong>${baseDeDatos.length}</strong> registros.`;
-                status.style.color = "var(--ok-text)";
-            } else {
-                status.innerHTML = `⚠️ Sistema vacío. Carga un archivo CSV para comenzar.`;
-                status.style.color = "var(--error-text)";
-            }
+        // ACTUALIZAR AMBOS CONTADORES
+        function actualizarContadores() {
+            document.getElementById('contador-hoy').innerText = Object.keys(registrosDiarios).length;
+            document.getElementById('contador-bd').innerText = baseDeDatos.length;
         }
 
-        document.getElementById('csv-upload').addEventListener('change', function(e) {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = function(event) { procesarCSV(event.target.result); };
-            reader.readAsText(file, 'UTF-8');
-            e.target.value = '';
-        });
-
-        function parsearLineaCSV(linea) {
-            const resultado = []; let campoActual = ''; let dentroComillas = false;
-            for (let i = 0; i < linea.length; i++) {
-                const c = linea[i];
-                if (c === '"') {
-                    if (dentroComillas && linea[i + 1] === '"') { campoActual += '"'; i++; } 
-                    else { dentroComillas = !dentroComillas; }
-                } else if (c === ',' && !dentroComillas) { resultado.push(campoActual); campoActual = ''; } 
-                else { campoActual += c; }
+        // PROCESADOR INTELIGENTE DEL QR
+        function procesarDatosQR(codigoLeido) {
+            let datos = null;
+            try { 
+                datos = JSON.parse(codigoLeido); 
+            } catch (e) {
+                datos = {};
+                let lineas = codigoLeido.split('\n');
+                lineas.forEach(linea => {
+                    let partes = linea.split(':');
+                    if (partes.length >= 2) {
+                        let clave = partes.shift().trim();
+                        let valor = partes.join(':').trim();
+                        if (clave) datos[clave] = valor;
+                    }
+                });
             }
-            resultado.push(campoActual);
-            return resultado.map(v => v.trim());
-        }
-
-        function procesarCSV(texto) {
-            const textoLimpio = texto.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-            const lineas = textoLimpio.split('\n');
-            const dataTemporal = [];
-
-            for (let i = 1; i < lineas.length; i++) {
-                if (lineas[i].trim() === '') continue;
-                const columnas = parsearLineaCSV(lineas[i]);
-                
-                if (columnas.length >= 9 && columnas[1] !== '') {
-                    dataTemporal.push({
-                        id: columnas[1], nombre: columnas[2], gradoGrupo: (columnas[3] + " " + columnas[4]).trim(), 
-                        vencimiento: columnas[6], ingreso: columnas[7], salida: columnas[8], cargo: columnas[9] || "Alumno"               
-                    });
-                }
-            }
-            if (dataTemporal.length > 0) {
-                baseDeDatos = dataTemporal;
-                localStorage.setItem('institucionDB', JSON.stringify(baseDeDatos));
-                actualizarEstadoDB(true); alert(`¡Éxito! Se cargaron ${baseDeDatos.length} registros.`);
-            } else { alert('Error: El archivo CSV no coincide con la plantilla.'); }
+            return (datos && Object.keys(datos).length > 0) ? datos : null;
         }
 
         function parsearFecha(texto) {
@@ -292,47 +278,100 @@
 
         function validarAcceso(codigoLeido) {
             const hoy = new Date(); const hoyString = hoy.toDateString();
+            
+            // Reiniciar asistencias si es un día nuevo
             if (hoyString !== fechaMemoria) {
                 registrosDiarios = {}; fechaMemoria = hoyString;
                 localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios));
                 localStorage.setItem('fechaAsistencias', fechaMemoria);
+                actualizarContadores();
             }
 
-            const codigo = (codigoLeido || '').trim().toLowerCase();
-            if (codigo === '') return;
-            if (baseDeDatos.length === 0) { mostrarMensaje('error', '❌ Error: Base de datos no cargada.'); return; }
+            let datosExtras = procesarDatosQR(codigoLeido);
+            if (!datosExtras) {
+                mostrarMensaje('error', '❌ QR no válido o vacío.'); 
+                return;
+            }
 
-            const usuario = baseDeDatos.find(persona => (persona.id || '').toLowerCase() === codigo);
-            if (!usuario) { mostrarMensaje('vencido', '❌ ACCESO DENEGADO<br><small>Credencial no registrada.</small>'); return; }
+            // EXTRAER DATOS DEL QR
+            let buscarClave = (claves) => {
+                let keys = Object.keys(datosExtras);
+                for (let cl of claves) {
+                    let encontrada = keys.find(k => k.toLowerCase() === cl.toLowerCase());
+                    if (encontrada) return datosExtras[encontrada];
+                }
+                return "";
+            };
+
+            let nombre = buscarClave(["Nombre", "Nombre Completo", "Alumno"]) || "Desconocido";
+            let codigoUnico = buscarClave(["ID", "Matrícula", "Matricula", "Folio"]) || nombre; 
+            let gradoGrupo = buscarClave(["Grado", "Curso", "Grupo", "Grado/Grupo"]) || "N/A";
+            let cargo = buscarClave(["Cargo", "Rol", "Tipo"]) || "Alumno";
+            let vigencia = buscarClave(["Vigencia", "Vencimiento", "Caducidad"]);
+            let ingresoOficial = buscarClave(["Ingreso", "Hora Ingreso", "Entrada"]); 
+
+            let usuario = { id: codigoUnico, nombre: nombre, gradoGrupo: gradoGrupo, cargo: cargo, ingreso: ingresoOficial };
+
+            // ALIMENTAR LA BASE DE DATOS AUTOMÁTICAMENTE
+            let indexExistente = baseDeDatos.findIndex(u => u.id === codigoUnico);
+            if (indexExistente === -1) {
+                baseDeDatos.push(usuario); // Es nuevo, lo agregamos
+            } else {
+                baseDeDatos[indexExistente] = usuario; // Ya existe, actualizamos sus datos por si cambiaron de grado
+            }
+            localStorage.setItem('institucionDB', JSON.stringify(baseDeDatos));
 
             const fechaFormatStr = hoy.toLocaleDateString('es-ES', { day: '2-digit', month: '2-digit', year: 'numeric' });
             const horaActualStr = hoy.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             const timestampActual = Date.now();
-
             const hoyComprobacion = new Date(); hoyComprobacion.setHours(0, 0, 0, 0);
-            const fechaVencimiento = parsearFecha(usuario.vencimiento);
-            if (fechaVencimiento) {
-                fechaVencimiento.setHours(0, 0, 0, 0);
-                if (hoyComprobacion > fechaVencimiento) {
-                    mostrarMensaje('vencido', `🚨 ACCESO DENEGADO<br><small>Credencial vencida</small>`, usuario, null, null, null); return;
+
+            // Validar vigencia
+            if (vigencia) {
+                const fechaVencimiento = parsearFecha(vigencia);
+                if (fechaVencimiento) {
+                    fechaVencimiento.setHours(0, 0, 0, 0);
+                    if (hoyComprobacion > fechaVencimiento) {
+                        mostrarMensaje('vencido', `🚨 ACCESO DENEGADO<br><small>Credencial vencida el ${vigencia}</small>`, usuario, null, null, null); 
+                        actualizarContadores();
+                        return;
+                    }
                 }
             }
 
-            let estadoActual = registrosDiarios[codigo];
+            let estadoActual = registrosDiarios[codigoUnico];
+            
             if (!estadoActual) {
+                // PRIMER ESCANEO (INGRESO)
                 let estatusCalculado = evaluarRetardo(usuario.ingreso) || { texto: "✅ INGRESADO", clase: "estatus-atiempo" };
-                registrosDiarios[codigo] = { estado: 'ingreso', fecha: fechaFormatStr, horaIngreso: horaActualStr, horaSalida: '---', timestamp: timestampActual };
+                
+                registrosDiarios[codigoUnico] = { 
+                    usuario: usuario,
+                    estado: 'ingreso', 
+                    fecha: fechaFormatStr, 
+                    horaIngreso: horaActualStr, 
+                    horaSalida: '---', 
+                    timestamp: timestampActual 
+                };
+                
                 localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
+                actualizarContadores();
                 mostrarMensaje('ok', `INGRESO REGISTRADO`, usuario, horaActualStr, estatusCalculado, fechaFormatStr);
+                
             } else if (estadoActual.estado === 'ingreso') {
+                // SEGUNDO ESCANEO (SALIDA)
                 const minutosBloqueo = 5; 
                 const tiempoTranscurrido = timestampActual - (estadoActual.timestamp || 0);
                 if (tiempoTranscurrido < (minutosBloqueo * 60 * 1000)) {
                     const minutosRestantes = Math.ceil((minutosBloqueo * 60 * 1000 - tiempoTranscurrido) / 60000);
                     mostrarMensaje('error', `⚠️ ENTRADA YA REGISTRADA<br><small>Espera ${minutosRestantes} min. antes de registrar tu salida.</small>`, usuario, horaActualStr, null, fechaFormatStr);
                 } else {
-                    registrosDiarios[codigo].estado = 'salida'; registrosDiarios[codigo].horaSalida = horaActualStr; registrosDiarios[codigo].timestamp = timestampActual;
+                    registrosDiarios[codigoUnico].estado = 'salida'; 
+                    registrosDiarios[codigoUnico].horaSalida = horaActualStr; 
+                    registrosDiarios[codigoUnico].timestamp = timestampActual;
+                    
                     localStorage.setItem('asistenciasHoy', JSON.stringify(registrosDiarios)); 
+                    actualizarContadores(); 
                     mostrarMensaje('ok', `SALIDA REGISTRADA`, usuario, horaActualStr, { texto: "🚪 SALIDA", clase: "estatus-salida" }, fechaFormatStr);
                 }
             } else {
@@ -341,7 +380,7 @@
         }
 
         // ============================================================================
-        // NUEVO MOTOR DE EXPORTACIÓN NATIVO (CSV Y PDF)
+        // MOTOR DE EXPORTACIÓN NATIVO (CSV Y PDF) 
         // ============================================================================
         async function compartirArchivoNativo(blob, fileName) {
             try {
@@ -379,11 +418,9 @@
             let csvContent = "ID,Nombre,Grado/Grupo,Cargo,Fecha,Hora Ingreso,Hora Salida\n";
             for (const codigo in registrosDiarios) {
                 const r = registrosDiarios[codigo];
-                const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
-                if (u) {
-                    const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
-                    csvContent += `"${u.id}","${u.nombre}","${u.gradoGrupo}","${u.cargo}","${fechaRegistro}","${r.horaIngreso}","${r.horaSalida}"\n`;
-                }
+                const u = r.usuario;
+                const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
+                csvContent += `"${u.id}","${u.nombre}","${u.gradoGrupo}","${u.cargo}","${fechaRegistro}","${r.horaIngreso}","${r.horaSalida}"\n`;
             }
             const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
             const blob = new Blob([bom, csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -396,7 +433,7 @@
         // EXPORTAR PDF
         document.getElementById('btn-pdf').addEventListener('click', async () => {
             if (Object.keys(registrosDiarios).length === 0) return alert('No hay registros de asistencia.');
-            if (!window.jspdf) return alert('Librería PDF no cargada. Verifica tu internet.');
+            if (!window.jspdf) return alert('Librería PDF no cargada.');
             
             const btn = document.getElementById('btn-pdf'); const textoOriginal = btn.innerText; btn.innerText = "⌛ Procesando...";
             
@@ -407,11 +444,9 @@
             const bodyData = [];
             for (const codigo in registrosDiarios) {
                 const r = registrosDiarios[codigo];
-                const u = baseDeDatos.find(user => (user.id || '').toLowerCase() === codigo);
-                if (u) {
-                    const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
-                    bodyData.push([u.id, u.nombre, u.gradoGrupo, u.cargo, fechaRegistro, r.horaIngreso, r.horaSalida]);
-                }
+                const u = r.usuario;
+                const fechaRegistro = r.fecha || new Date().toLocaleDateString('es-ES');
+                bodyData.push([u.id, u.nombre, u.gradoGrupo, u.cargo, fechaRegistro, r.horaIngreso, r.horaSalida]);
             }
             doc.autoTable({
                 startY: 28, head: [['ID', 'Nombre', 'Grado/Grupo', 'Cargo', 'Fecha', 'Ingreso', 'Salida']],
@@ -426,15 +461,14 @@
             btn.innerText = textoOriginal;
         });
 
-        // ============================================================================
-
         function onScanSuccess(decodedText) {
             if (escaneoPausado) return; escaneoPausado = true;
             validarAcceso(decodedText);
+            
             setTimeout(() => {
                 infoAlumnoBox.style.display = 'none'; resultadoBox.className = 'ok'; resultadoBox.innerHTML = '🔄 Siguiente credencial...';
-                setTimeout(() => { modalOverlay.style.display = 'none'; escaneoPausado = false; }, 1000); 
-            }, 2500); 
+                setTimeout(() => { modalOverlay.style.display = 'none'; escaneoPausado = false; }, 500); 
+            }, 1500); 
         }
 
         function onScanFailure() {}
